@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import { app } from "../lib/firebase/config";
 import Head from "next/head";
 import SignIn from "@/components/customLogin";
+import CustomSignUp from "@/components/customSignup";
 
 export default function Login() {
   const auth = getAuth(app);
@@ -58,7 +59,7 @@ export default function Login() {
             Your AI-powered Design QA Assistant
           </p>
 
-         <button
+          <button
             type="button"
             onClick={handleGoogleSignIn}
             disabled={loading}
@@ -83,7 +84,8 @@ export default function Login() {
               {loading ? "Signing in..." : "Sign in with Google"}
             </span>
           </button>
-        <SignIn />
+
+          <CustomSignUp />
 
         </div>
       </div>

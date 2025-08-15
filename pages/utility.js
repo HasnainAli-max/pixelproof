@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth } from '../firebase/config';
+import { auth } from '../lib/firebase/config';
 import { toast } from 'react-hot-toast';
 import ExportPDF from '../components/ExportPDF';
 import Navbar from '../components/Navbar';

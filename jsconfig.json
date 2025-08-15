@@ -7,3 +7,12 @@
   }
 }
 
+// {
+//   "compilerOptions": {
+//     "allowJs": true,
+//     "checkJs": false,
+//     "baseUrl": "."
+//   },
+//   "typeAcquisition": { "enable": false },
+//   "exclude": ["node_modules"]
+// }

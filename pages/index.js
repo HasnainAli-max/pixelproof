@@ -16,7 +16,7 @@ export default function LandingPage() {
           <Link href="/login">
             <button className="text-white hover:underline">Sign in</button>
           </Link>
-          <Link href="/login">
+          <Link href="/signup">
             <button className="ml-2 border border-white text-white hover:bg-white hover:text-purple-800 px-4 py-1 rounded">
               Sign up
             </button>
