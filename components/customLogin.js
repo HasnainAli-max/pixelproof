@@ -46,7 +46,7 @@ const SignIn = () => {
     <>
       <Toaster richColors position="top-right" closeButton />
 
-      <div className="flex w-full flex-col items-center justify-center bg-white dark:bg-gray-900 pt-5 rounded-2xl max-w-sm text-center gap-4 shadow-sm border border-gray-200 dark:border-gray-800">
+      <div className="flex w-full flex-col items-center justify-center bg-white dark:bg-gray-900 pt-5 rounded-2xl max-w-sm text-center gap-4 shadow-sm   dark:border-gray-800">
         <input
           placeholder="Email"
           className="w-full border border-gray-300 dark:border-gray-700 rounded-md px-4 py-2

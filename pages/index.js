@@ -1,8 +1,39 @@
 import React from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
+// import { auth } from '@/lib/firebase/config';
+import { auth } from '@/lib/firebase/config'; // ✅ no getAuth() import
+
+// Public envs you set in .env.local
+const PRICE_BASIC = process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC || 'price_basic_xxx';
+const PRICE_PRO   = process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO   || 'price_pro_xxx';
+const PRICE_ELITE = process.env.NEXT_PUBLIC_STRIPE_PRICE_ELITE || 'price_elite_xxx';
 
 export default function LandingPage() {
+  // Start a subscription if signed in; otherwise let Link navigate to /login
+  const handleChoose = async (priceId, e) => {
+    const user = auth.currentUser; // ✅ no getAuth()
+    if (!user) return; // not signed in -> follow the Link to /login
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ priceId }),
+      });
+      const data = await res.json();
+      if (data?.url) window.location.href = data.url;
+      else alert(data?.error || 'Unable to start checkout.');
+    } catch (err) {
+      console.error(err);
+      alert('Something went wrong starting checkout.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white text-gray-900">
       <Head>
@@ -66,7 +97,12 @@ export default function LandingPage() {
             <p className="text-4xl font-bold text-purple-800 mb-2">$19.99</p>
             <p className="text-sm text-gray-600 mb-4">100 comparisons / month</p>
             <Link href="/login">
-              <button className="bg-purple-800 text-white w-full py-2 rounded">Choose Starter</button>
+              <button
+                className="bg-purple-800 text-white w-full py-2 rounded"
+                onClick={(e) => handleChoose(PRICE_BASIC, e)}
+              >
+                Choose Starter
+              </button>
             </Link>
           </div>
 
@@ -76,7 +112,12 @@ export default function LandingPage() {
             <p className="text-4xl font-bold text-purple-800 mb-2">$49.99</p>
             <p className="text-sm text-gray-600 mb-4">500 comparisons / month</p>
             <Link href="/login">
-              <button className="bg-purple-800 text-white w-full py-2 rounded">Choose Pro</button>
+              <button
+                className="bg-purple-800 text-white w-full py-2 rounded"
+                onClick={(e) => handleChoose(PRICE_PRO, e)}
+              >
+                Choose Pro
+              </button>
             </Link>
           </div>
 
@@ -86,7 +127,12 @@ export default function LandingPage() {
             <p className="text-4xl font-bold text-purple-800 mb-2">$99.99</p>
             <p className="text-sm text-gray-600 mb-4">Unlimited comparisons</p>
             <Link href="/login">
-              <button className="bg-purple-800 text-white w-full py-2 rounded">Choose Unlimited</button>
+              <button
+                className="bg-purple-800 text-white w-full py-2 rounded"
+                onClick={(e) => handleChoose(PRICE_ELITE, e)}
+              >
+                Choose Unlimited
+              </button>
             </Link>
           </div>
         </div>
@@ -116,4 +162,3 @@ export default function LandingPage() {
     </div>
   );
 }
-
