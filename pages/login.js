@@ -11,27 +11,36 @@ export default function Login() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [loading, setLoading] = useState(false);
 
+  // Helper to read the ?next=... param safely
+  const getNextDest = () => {
+    const q = router.query?.next;
+    return Array.isArray(q) ? q[0] : q || "/utility";
+  };
+
   useEffect(() => {
+    if (!router.isReady) return; // ensure query is available
     const unsub = onAuthStateChanged(auth, (user) => {
       if (user) {
-        router.replace("/utility");
+        // If already logged in, go where the flow wants (Stripe checkout) or default
+        router.replace(getNextDest());
       } else {
         setCheckingAuth(false);
       }
     });
     return () => unsub();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady]);
 
   const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
       setLoading(true);
       await signInWithPopup(auth, provider);
-      router.replace("/utility");
+      // After successful sign-in, respect the next param
+      router.replace(getNextDest());
     } catch (error) {
       console.error("Google Sign-In Error:", error);
       alert("Google Sign-In failed. " + error.message);
-    } finally {
       setLoading(false);
     }
   };
@@ -49,8 +58,7 @@ export default function Login() {
       <Head>
         <title>Login – PixelProof</title>
       </Head>
-      <div>
-      </div>
+
       <div className="min-h-screen flex items-center justify-center bg-blue-50 px-4">
         <div className="bg-white p-8 rounded-xl shadow-md max-w-sm w-full text-center">
           <h1 className="text-2xl font-semibold text-blue-700 mb-4">PixelProof</h1>
@@ -58,7 +66,7 @@ export default function Login() {
             Your AI-powered Design QA Assistant
           </p>
 
-         <button
+          <button
             type="button"
             onClick={handleGoogleSignIn}
             disabled={loading}
@@ -83,11 +91,11 @@ export default function Login() {
               {loading ? "Signing in..." : "Sign in with Google"}
             </span>
           </button>
-        <SignIn />
 
+          {/* Your existing custom sign-in component (email/password etc.) */}
+          <SignIn />
         </div>
       </div>
     </>
   );
 }
-

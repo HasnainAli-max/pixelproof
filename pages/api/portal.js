@@ -1,5 +1,19 @@
-import { stripe } from '@/lib/stripe';
-import { authAdmin, db } from '@/lib/firebase/firebaseAdmin';
+import { stripe } from '@/lib/stripe/stripe';
+import { authAdmin } from '@/lib/firebase/firebaseAdmin';
+
+async function findOrCreateCustomerByEmail(email, uid) {
+  // Prefer search (requires Stripe Search; most accounts have it)
+  try {
+    const result = await stripe.customers.search({ query: `email:\'${email}\'` });
+    if (result.data[0]) return result.data[0].id;
+  } catch (_) {
+    // fallback to list (limited, but fine for single customer per email)
+    const list = await stripe.customers.list({ email, limit: 1 });
+    if (list.data[0]) return list.data[0].id;
+  }
+  const created = await stripe.customers.create({ email, metadata: { uid } });
+  return created.id;
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -8,20 +22,21 @@ export default async function handler(req, res) {
     const auth = req.headers.authorization || '';
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
     if (!token) return res.status(401).json({ error: 'Missing ID token' });
-    const { uid } = await authAdmin.verifyIdToken(token);
 
-    const doc = await db.collection('users').doc(uid).get();
-    const customerId = doc.get('stripeCustomerId');
-    if (!customerId) return res.status(400).json({ error: 'No Stripe customer for user' });
+    const decoded = await authAdmin.verifyIdToken(token);
+    const email = decoded.email;
+    if (!email) return res.status(400).json({ error: 'User email is required' });
 
-    const session = await stripe.billingPortal.sessions.create({
+    const customerId = await findOrCreateCustomerByEmail(email, decoded.uid);
+
+    const portal = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: `${process.env.APP_URL}/billing`,
+      return_url: `${process.env.APP_URL || 'http://localhost:3000'}/billing`,
     });
 
-    res.status(200).json({ url: session.url });
+    return res.status(200).json({ url: portal.url });
   } catch (e) {
     console.error('portal error', e);
-    res.status(500).json({ error: 'Internal error' });
+    return res.status(500).json({ error: 'Internal error' });
   }
 }

@@ -1,19 +1,18 @@
+// pages/index.js
 import React from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
-// import { auth } from '@/lib/firebase/config';
-import { auth } from '@/lib/firebase/config'; // ✅ no getAuth() import
+import { auth } from '@/lib/firebase/config'; // use your initialized auth
 
-// Public envs you set in .env.local
+// Public envs
 const PRICE_BASIC = process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC || 'price_basic_xxx';
-const PRICE_PRO   = process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO   || 'price_pro_xxx';
+const PRICE_PRO = process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO || 'price_pro_xxx';
 const PRICE_ELITE = process.env.NEXT_PUBLIC_STRIPE_PRICE_ELITE || 'price_elite_xxx';
 
 export default function LandingPage() {
-  // Start a subscription if signed in; otherwise let Link navigate to /login
   const handleChoose = async (priceId, e) => {
-    const user = auth.currentUser; // ✅ no getAuth()
-    if (!user) return; // not signed in -> follow the Link to /login
+    const user = auth.currentUser;
+    if (!user) return; // not signed in → let Link navigate to /login?next=...
 
     e.preventDefault();
     e.stopPropagation();
@@ -96,11 +95,16 @@ export default function LandingPage() {
             <h3 className="text-xl font-semibold text-purple-700 mb-2">Starter</h3>
             <p className="text-4xl font-bold text-purple-800 mb-2">$19.99</p>
             <p className="text-sm text-gray-600 mb-4">100 comparisons / month</p>
-            <Link href="/login">
-              <button
-                className="bg-purple-800 text-white w-full py-2 rounded"
-                onClick={(e) => handleChoose(PRICE_BASIC, e)}
-              >
+            <Link href={`/login?next=/billing/checkout?plan=basic`}>
+              <button className="bg-purple-800 text-white w-full py-2 rounded"
+                onClick={(e) => {
+                  // If you want immediate checkout for signed-in users:
+                  if (auth.currentUser) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.location.href = '/billing/checkout?plan=basic';
+                  }
+                }}>
                 Choose Starter
               </button>
             </Link>
@@ -111,11 +115,15 @@ export default function LandingPage() {
             <h3 className="text-xl font-semibold text-purple-700 mb-2">Pro</h3>
             <p className="text-4xl font-bold text-purple-800 mb-2">$49.99</p>
             <p className="text-sm text-gray-600 mb-4">500 comparisons / month</p>
-            <Link href="/login">
-              <button
-                className="bg-purple-800 text-white w-full py-2 rounded"
-                onClick={(e) => handleChoose(PRICE_PRO, e)}
-              >
+            <Link href={`/login?next=/billing/checkout?plan=pro`}>
+              <button className="bg-purple-800 text-white w-full py-2 rounded"
+                onClick={(e) => {
+                  if (auth.currentUser) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.location.href = '/billing/checkout?plan=pro';
+                  }
+                }}>
                 Choose Pro
               </button>
             </Link>
@@ -126,11 +134,15 @@ export default function LandingPage() {
             <h3 className="text-xl font-semibold text-purple-700 mb-2">Unlimited</h3>
             <p className="text-4xl font-bold text-purple-800 mb-2">$99.99</p>
             <p className="text-sm text-gray-600 mb-4">Unlimited comparisons</p>
-            <Link href="/login">
-              <button
-                className="bg-purple-800 text-white w-full py-2 rounded"
-                onClick={(e) => handleChoose(PRICE_ELITE, e)}
-              >
+            <Link href={`/login?next=/billing/checkout?plan=elite`}>
+              <button className="bg-purple-800 text-white w-full py-2 rounded"
+                onClick={(e) => {
+                  if (auth.currentUser) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.location.href = '/billing/checkout?plan=elite';
+                  }
+                }}>
                 Choose Unlimited
               </button>
             </Link>
@@ -145,18 +157,10 @@ export default function LandingPage() {
 
       {/* Animation Style */}
       <style jsx global>{`
-        .animate-fade-in {
-          animation: fadeIn 1.2s ease-out;
-        }
+        .animate-fade-in { animation: fadeIn 1.2s ease-out; }
         @keyframes fadeIn {
-          0% {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          100% {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          0% { opacity: 0; transform: translateY(20px); }
+          100% { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>
