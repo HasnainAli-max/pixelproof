@@ -1,5 +1,5 @@
-import { stripe } from '@/lib/stripe';
-import { authAdmin, db, adminSdk } from '@/lib/firebaseAdmin';
+import { stripe } from '@/lib/stripe/stripe';
+import { authAdmin, db, adminSdk } from '@/lib/firebase/firebaseAdmin';
 import { PLAN_BY_PRICE } from '@/utils/stripePlans';
 
 export default async function handler(req, res) {
