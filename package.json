@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev-webhooks.mjs",
+    "dev:plain": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "web": "next dev -p 3000"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.7",
