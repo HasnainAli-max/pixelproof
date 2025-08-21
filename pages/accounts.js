@@ -1,3 +1,4 @@
+// pages/accounts.js
 import Head from "next/head";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -13,7 +14,6 @@ export default function Accounts() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
-  // sign out (same behavior as utility page)
   const handleSignOut = async () => {
     try {
       await signOut(auth);
@@ -23,20 +23,17 @@ export default function Accounts() {
     }
   };
 
-  // 1) redirect to /login if not signed in
+  // auth guard
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
-      if (!u) {
-        router.replace("/login");
-      } else {
-        setAuthUser(u);
-      }
+      if (!u) router.replace("/login");
+      else setAuthUser(u);
     });
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 2) watch the user's Firestore doc (for plan/status/etc.)
+  // user doc
   useEffect(() => {
     if (!authUser?.uid) return;
     const unsub = onSnapshot(
@@ -50,7 +47,7 @@ export default function Accounts() {
     return () => unsub();
   }, [authUser?.uid]);
 
-  // 3) derived values for UI
+  // derive display fields
   const view = useMemo(() => {
     const name =
       userDoc?.displayName ||
@@ -68,12 +65,37 @@ export default function Accounts() {
       typeof userDoc?.amount === "number" ? (userDoc.amount / 100).toFixed(2) : "—";
 
     const status = userDoc?.subscriptionStatus || "inactive";
-    const renewDate = formatDate(userDoc?.currentPeriodEnd);
+    const cancelAtPeriodEnd = !!userDoc?.cancelAtPeriodEnd;
 
-    return { name, loginEmail, billingEmail, plan, amount, status, renewDate };
+    const renewDate = formatDate(userDoc?.currentPeriodEnd);
+    const endedOn = formatDate(userDoc?.endedAt);
+
+    const statusLabel =
+      status === "canceled" ? "canceled" : cancelAtPeriodEnd ? "canceling" : status;
+
+    // ▼▼ UPDATED: show “Access until …” when active
+    let subline = "—";
+    if (status === "canceled") {
+      subline = endedOn
+        ? `Ended on ${endedOn}`
+        : renewDate
+        ? `Ended on ${renewDate}`
+        : "Ended";
+    } else if (cancelAtPeriodEnd) {
+      subline = renewDate
+        ? `Cancels on ${renewDate} • Access until ${renewDate}`
+        : "Cancels at period end";
+    } else if (status === "active") {
+      subline = renewDate
+        ? `Access until ${renewDate}`
+        : "Access until end of current cycle";
+    } else if (renewDate) {
+      subline = `Access until ${renewDate}`;
+    }
+
+    return { name, loginEmail, billingEmail, plan, amount, statusLabel, subline };
   }, [userDoc, authUser]);
 
-  // 4) open Stripe Customer Portal (intent optional: 'update' | 'cancel' | 'delete')
   async function openPortal(intent) {
     try {
       setBusy(true);
@@ -84,12 +106,16 @@ export default function Accounts() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ intent }),
+        body: JSON.stringify({ intent }), // 'update' | 'cancel' | 'delete'
       });
 
       const text = await res.text();
       let data;
-      try { data = JSON.parse(text); } catch { throw new Error(text); }
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(text);
+      }
       if (!res.ok) throw new Error(data.error || "Failed to create portal session");
 
       window.location.href = data.url;
@@ -115,12 +141,10 @@ export default function Accounts() {
         <title>Account – PixelProof</title>
       </Head>
 
-      {/* Same Navbar as Utility page */}
       <Navbar user={authUser} onSignOut={handleSignOut} />
 
       <main className="min-h-screen bg-gradient-to-b from-[#f7f8ff] to-white dark:from-slate-950 dark:to-slate-900">
-        {/* spacer row kept (banner content previously commented) */}
-        <div className="max-w-6xl mx-auto px-6 pt-8 pb-4 flex items-center justify-end gap-3" />
+        <div className="max-w-6xl mx-auto px-6 pt-8 pb-4" />
 
         <div className="max-w-6xl mx-auto px-6 pb-14 grid lg:grid-cols-3 gap-6">
           {/* Profile */}
@@ -157,30 +181,23 @@ export default function Accounts() {
 
             <div className="rounded-2xl border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/40 p-5 mb-5 relative">
               <div className="absolute right-3 top-3">
-                <span
-                  className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                    view.status === "active"
-                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                      : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
-                  }`}
-                >
-                  {view.status}
-                </span>
+                <Badge label={view.statusLabel} />
               </div>
               <div className="text-slate-800 dark:text-slate-100 font-semibold">{view.plan}</div>
               <div className="mt-1">
                 <span className="text-3xl font-extrabold text-slate-900 dark:text-white">
                   {view.amount !== "—" ? `$${view.amount}` : "—"}
                 </span>
-                {view.amount !== "—" && <span className="text-slate-600 dark:text-slate-300"> / mo</span>}
+                {view.amount !== "—" && (
+                  <span className="text-slate-600 dark:text-slate-300"> / mo</span>
+                )}
               </div>
               <div className="text-slate-600 dark:text-slate-300 text-sm mt-2">
-                {view.renewDate ? `Renews on ${view.renewDate}` : "No renewal scheduled"}
+                {view.subline}
               </div>
             </div>
 
             <div className="space-y-3">
-              {/* Single Update button */}
               <button
                 type="button"
                 disabled={busy}
@@ -202,8 +219,10 @@ export default function Accounts() {
           </aside>
 
           {/* Danger Zone */}
-          <section className="lg:col-span-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm ring-1 ring-black/5 dark:ring-white/10 p-6 mt-2">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">Danger Zone</h3>
+          {/* <section className="lg:col-span-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm ring-1 ring-black/5 dark:ring-white/10 p-6 mt-2">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">
+              Danger Zone
+            </h3>
             <p className="text-slate-600 dark:text-slate-300 text-sm mb-4">
               Deleting the subscription removes access immediately and cannot be undone.
             </p>
@@ -215,26 +234,48 @@ export default function Accounts() {
             >
               Delete subscription
             </button>
-          </section>
+          </section> */}
         </div>
       </main>
     </>
   );
 }
 
-/* ---------- helpers ---------- */
+/* ---------- small components/helpers ---------- */
+function Badge({ label }) {
+  const cls =
+    label === "canceled"
+      ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+      : label === "canceling"
+      ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+      : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300";
+  return (
+    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${cls}`}>{label}</span>
+  );
+}
+
 function initials(name = "") {
   const parts = name.trim().split(/\s+/).slice(0, 2);
   return parts.map((p) => p[0]?.toUpperCase() || "").join("") || "PP";
 }
 
+/** Robustly turn many "timestamp-like" shapes into a date string */
 function formatDate(tsLike) {
-  if (!tsLike) return "";
-  if (typeof tsLike?.toDate === "function") return tsLike.toDate().toLocaleDateString();
-  if (typeof tsLike === "number") {
-    const ms = tsLike > 1e12 ? tsLike : tsLike * 1000;
-    return new Date(ms).toLocaleDateString();
+  const ms = toMillis(tsLike);
+  if (!ms) return "";
+  return new Date(ms).toLocaleDateString();
+}
+function toMillis(v) {
+  if (!v) return null;
+  if (typeof v?.toDate === "function") return v.toDate().getTime();
+  if (typeof v === "object") {
+    if (typeof v.seconds === "number") return v.seconds * 1000;
+    if (typeof v._seconds === "number") return v._seconds * 1000;
   }
-  const d = new Date(tsLike);
-  return isNaN(d) ? "" : d.toLocaleDateString();
+  if (typeof v === "number" || (typeof v === "string" && v.trim() !== "")) {
+    const n = Number(v);
+    if (!Number.isNaN(n)) return n > 1e12 ? n : n * 1000;
+  }
+  const d = Date.parse(v);
+  return Number.isNaN(d) ? null : d;
 }

@@ -19,14 +19,16 @@ export default function UtilityPage() {
   const [user, setUser] = useState(null);
   const router = useRouter();
 
+  // Auth guard (unchanged)
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) setUser(user);
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      if (u) setUser(u);
       else router.replace('/login');
     });
     return () => unsubscribe();
   }, [router]);
 
+  // Theme toggle (unchanged)
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
@@ -68,8 +70,36 @@ export default function UtilityPage() {
         body: formData,
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data?.error || 'Server returned an error');
+      // Robust JSON parsing (in case server sends HTML on errors)
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = {};
+      }
+
+      // Quota / plan-aware handling
+      if (!response.ok) {
+        const code = data?.error_code || '';
+        const msg = data?.error || 'Server returned an error';
+
+        if (response.status === 429 || code === 'LIMIT_EXCEEDED') {
+          // Show alert when daily limit is reached
+          alert(msg);
+          toast.error(msg);
+          return;
+        }
+
+        if (response.status === 403 && code === 'NO_PLAN') {
+          toast.error('No active plan. Please choose a plan to continue.');
+          router.push('/billing');
+          return;
+        }
+
+        throw new Error(msg);
+      }
+
       if (!data.result) throw new Error('Comparison result missing in response.');
 
       setComparisonResult(data.result);
@@ -151,10 +181,14 @@ export default function UtilityPage() {
 
         <button
           onClick={handleCompare}
-          className="mt-10 bg-purple-800 hover:bg-purple-900 text-white px-6 py-3 rounded-lg font-semibold shadow transition"
+          disabled={loading}
+          className="mt-10 bg-purple-800 hover:bg-purple-900 disabled:opacity-60 text-white px-6 py-3 rounded-lg font-semibold shadow transition"
         >
           {loading ? 'Comparing...' : 'Start Comparison'}
         </button>
+        <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+          Daily limits: <strong>Basic</strong> 1 • <strong>Pro</strong> 2 • <strong>Elite</strong> 3.
+        </p>
 
         {loading && <LoadingSpinner />}
 
@@ -176,4 +210,3 @@ export default function UtilityPage() {
     </div>
   );
 }
-
