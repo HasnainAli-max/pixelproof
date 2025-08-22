@@ -7,11 +7,19 @@ if (!getApps().length) initializeApp();
 const authAdmin = getAuth();
 const db = getFirestore();
 
-// per-day limits
-const DAILY_LIMITS = { basic: 1, pro: 2, elite: 3 };
+// Daily limits per plan
+const DAILY_LIMITS = { basic: 1, pro: 2, elite: 4 };
 
 export function limitForPlan(plan) {
   return DAILY_LIMITS[String(plan || "").toLowerCase()] ?? 0;
+}
+
+function toMs(tsLike) {
+  if (!tsLike) return null;
+  if (typeof tsLike?.toDate === "function") return tsLike.toDate().getTime();
+  if (typeof tsLike === "number") return tsLike > 1e12 ? tsLike : tsLike * 1000;
+  const t = Date.parse(tsLike);
+  return Number.isNaN(t) ? null : t;
 }
 
 export function todayKey() {
@@ -19,30 +27,53 @@ export function todayKey() {
 }
 
 /**
- * Verifies idToken, reads users/{uid}, and consumes 1 quota for today.
- * Throws if no access or limit reached.
+ * Verifies idToken, checks subscription access (status + grace),
+ * maps plan → limit, and consumes 1 from today's quota.
+ * Throws Error with .code = 'NO_PLAN' or 'LIMIT_EXCEEDED'.
  */
 export async function checkAndConsumeQuota(idToken) {
   const decoded = await authAdmin.verifyIdToken(idToken);
   const uid = decoded.uid;
 
-  const userSnap = await db.collection("users").doc(uid).get();
-  const user = userSnap.exists ? userSnap.data() : {};
-  const plan = String(user?.activePlan || "").toLowerCase();
+  const userRef = db.collection("users").doc(uid);
+  const userSnap = await userRef.get();
+  const d = userSnap.exists ? userSnap.data() : {};
+
+  const status = d?.subscriptionStatus || null;
+  const cancelAtPeriodEnd = !!d?.cancelAtPeriodEnd;
+  const endMs = toMs(d?.currentPeriodEnd);
+  const now = Date.now();
+  const inGrace = cancelAtPeriodEnd && endMs && endMs > now;
+
+  const ok = new Set(["active", "trialing", "past_due"]);
+  const hasAccess = ok.has(status) || inGrace;
+
+  if (!hasAccess) {
+    const e = new Error("No active subscription. Please buy a plan first.");
+    e.code = "NO_PLAN";
+    throw e;
+  }
+
+  const plan = String(d?.activePlan || "").toLowerCase();
   const max = limitForPlan(plan);
+  if (max <= 0) {
+    const e = new Error("No active plan. Please buy a plan first.");
+    e.code = "NO_PLAN";
+    throw e;
+  }
 
-  if (max <= 0) throw new Error("No active plan. Please choose a plan.");
-
-  const quotaRef = db.collection("users").doc(uid).collection("quota").doc("daily");
+  const quotaRef = userRef.collection("quota").doc("daily");
   const today = todayKey();
 
   await db.runTransaction(async (t) => {
     const s = await t.get(quotaRef);
-    const currentDay = s.exists ? s.get("day") : null;
-    const used = s.exists && currentDay === today ? (s.get("count") || 0) : 0;
+    const sameDay = s.exists && s.get("day") === today;
+    const used = sameDay ? Number(s.get("count") || 0) : 0;
 
     if (used >= max) {
-      throw new Error(`Daily limit reached for your ${plan || "current"} plan (${max}/day).`);
+      const e = new Error(`Daily limit reached for your ${plan} plan (${max}/day).`);
+      e.code = "LIMIT_EXCEEDED";
+      throw e;
     }
 
     t.set(

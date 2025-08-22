@@ -1,13 +1,13 @@
 // pages/utility.js
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth } from '../lib/firebase/config';
-import { toast } from 'react-hot-toast';
-import ExportPDF from '../components/ExportPDF';
-import Navbar from '../components/Navbar';
-import LoadingSpinner from '../components/LoadingSpinner';
-import ReactMarkdown from 'react-markdown';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/router";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { auth } from "../lib/firebase/config";
+import ExportPDF from "../components/ExportPDF";
+import Navbar from "../components/Navbar";
+import LoadingSpinner from "../components/LoadingSpinner";
+import ReactMarkdown from "react-markdown";
+import { Toaster, toast as notify } from "sonner";
 
 export default function UtilityPage() {
   const [image1, setImage1] = useState(null);
@@ -19,32 +19,32 @@ export default function UtilityPage() {
   const [user, setUser] = useState(null);
   const router = useRouter();
 
-  // Auth guard (unchanged)
+  // Auth guard
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
+    const unsub = onAuthStateChanged(auth, (u) => {
       if (u) setUser(u);
-      else router.replace('/login');
+      else router.replace("/login");
     });
-    return () => unsubscribe();
+    return () => unsub();
   }, [router]);
 
-  // Theme toggle (unchanged)
+  // Theme toggle
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', darkMode);
+    document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
 
   const handleSignOut = async () => {
     try {
       await signOut(auth);
-      router.replace('/login');
-    } catch (error) {
-      toast.error('Failed to sign out.');
+      router.replace("/login");
+    } catch {
+      notify.error("Failed to sign out.");
     }
   };
 
   const handleCompare = async () => {
     if (!image1 || !image2) {
-      toast.error('Please upload both images before comparing.');
+      notify.error("Please upload both images before comparing.");
       return;
     }
 
@@ -52,11 +52,11 @@ export default function UtilityPage() {
     setComparisonResult(null);
 
     try {
-      const token = await auth.currentUser.getIdToken();
+      const idToken = await auth.currentUser.getIdToken();
 
       const formData = new FormData();
-      formData.append('image1', image1);
-      formData.append('image2', image2);
+      formData.append("image1", image1);
+      formData.append("image2", image2);
 
       setFileMeta({
         fileName1: image1.name,
@@ -64,14 +64,13 @@ export default function UtilityPage() {
         timestamp: new Date().toLocaleString(),
       });
 
-      const response = await fetch('/api/compare', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetch("/api/compare", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}` },
         body: formData,
       });
 
-      // Robust JSON parsing (in case server sends HTML on errors)
-      const text = await response.text();
+      const text = await res.text();
       let data;
       try {
         data = JSON.parse(text);
@@ -79,34 +78,30 @@ export default function UtilityPage() {
         data = {};
       }
 
-      // Quota / plan-aware handling
-      if (!response.ok) {
-        const code = data?.error_code || '';
-        const msg = data?.error || 'Server returned an error';
+      if (!res.ok) {
+        const code = data?.error_code || "";
+        const msg = (data?.error || "Server error").toString();
 
-        if (response.status === 429 || code === 'LIMIT_EXCEEDED') {
-          // Show alert when daily limit is reached
-          alert(msg);
-          toast.error(msg);
+        if (code === "NO_PLAN" || /no active subscription|buy a plan/i.test(msg)) {
+          notify.error("Please buy a plan first.");
+          router.push("/billing");
           return;
         }
-
-        if (response.status === 403 && code === 'NO_PLAN') {
-          toast.error('No active plan. Please choose a plan to continue.');
-          router.push('/billing');
+        if (code === "LIMIT_EXCEEDED" || /daily limit/i.test(msg)) {
+          notify.error(msg || "Daily limit reached for your plan. Try again tomorrow.");
           return;
         }
 
         throw new Error(msg);
       }
 
-      if (!data.result) throw new Error('Comparison result missing in response.');
+      if (!data.result) throw new Error("Comparison result missing in response.");
 
       setComparisonResult(data.result);
-      toast.success('Comparison complete! 🎉');
-    } catch (error) {
-      console.error('Comparison failed:', error);
-      toast.error(`Error during comparison: ${error.message}`);
+      notify.success("Comparison complete! 🎉");
+    } catch (err) {
+      console.error("Comparison failed:", err);
+      notify.error(`Error during comparison: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -125,6 +120,7 @@ export default function UtilityPage() {
 
   return (
     <div className="min-h-screen bg-white text-gray-900 dark:bg-gray-900 dark:text-white font-sans">
+      <Toaster richColors position="top-center" closeButton />
       <Navbar user={user} onSignOut={handleSignOut} />
 
       <div className="p-6 max-w-4xl mx-auto">
@@ -135,7 +131,7 @@ export default function UtilityPage() {
             onClick={() => setDarkMode(!darkMode)}
             title="Toggle theme"
           >
-            {darkMode ? '🌙' : '☀️'}
+            {darkMode ? "🌙" : "☀️"}
           </button>
         </div>
 
@@ -154,7 +150,6 @@ export default function UtilityPage() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
-          {/* Upload Design */}
           <div className="border-2 border-dashed border-purple-300 p-6 rounded-lg text-center bg-white dark:bg-gray-700 hover:border-purple-500 transition transform hover:scale-[1.01]">
             <label className="block font-semibold text-gray-800 dark:text-white mb-2">Upload Design</label>
             <input
@@ -166,9 +161,10 @@ export default function UtilityPage() {
             {renderPreview(image1)}
           </div>
 
-          {/* Upload Dev */}
           <div className="border-2 border-dashed border-purple-300 p-6 rounded-lg text-center bg-white dark:bg-gray-700 hover:border-purple-500 transition transform hover:scale-[1.01]">
-            <label className="block font-semibold text-gray-800 dark:text-white mb-2">Upload Development Screenshot</label>
+            <label className="block font-semibold text-gray-800 dark:text-white mb-2">
+              Upload Development Screenshot
+            </label>
             <input
               type="file"
               onChange={(e) => setImage2(e.target.files[0])}
@@ -184,7 +180,7 @@ export default function UtilityPage() {
           disabled={loading}
           className="mt-10 bg-purple-800 hover:bg-purple-900 disabled:opacity-60 text-white px-6 py-3 rounded-lg font-semibold shadow transition"
         >
-          {loading ? 'Comparing...' : 'Start Comparison'}
+          {loading ? "Comparing..." : "Start Comparison"}
         </button>
         <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
           Daily limits: <strong>Basic</strong> 1 • <strong>Pro</strong> 2 • <strong>Elite</strong> 3.
