@@ -1,6 +1,7 @@
 import { stripe } from '@/lib/stripe/stripe';
 import { authAdmin, db, adminSdk } from '@/lib/firebase/firebaseAdmin';
-import { PLAN_BY_PRICE , PRICE_MAP , limitForPlan } from '@/utils/stripePlans';
+// import { PLAN_BY_PRICE , PRICE_MAP , limitForPlan } from '@/utils/stripePlans';
+import { PLAN_BY_PRICE } from '@/utils/stripePlans';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
